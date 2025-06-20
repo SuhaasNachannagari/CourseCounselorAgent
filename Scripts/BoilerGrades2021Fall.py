@@ -41,9 +41,7 @@ grade_map = {
     "D+": "d_plus_pct",
     "E": "e_pct",                 # Sometimes equivalent to F
     "F": "f_pct",
-    "FN": "failed_never_attended_pct",
     "I": "incomplete_pct",
-    "IF": "incomplete_failure_pct",
     "N": "not_passed_pct",        # Used for pass/no-pass
     "NS": "no_show_pct",          # Did not show up
     "P": "pass_pct",
@@ -61,7 +59,7 @@ grade_map = {
 
 grade_labels = [
     "A", "A-", "A+", "AU", "B", "B-", "B+", "C", "C-", "C+", "D", "D-", "D+",
-    "E", "F", "FN", "I", "IF", "N", "NS", "P", "PI", "S", "SI", "U", "W", "WF", "WN", "WU"
+    "E", "F", "I", "N", "NS", "P", "PI", "S", "SI", "U", "W", "WF", "WN", "WU"
 ]
 
 start_idx = 6
@@ -78,6 +76,8 @@ pd.set_option("display.max_columns", None)
 
 
 percentage_columns = [col for col in df.columns if '_pct' in col]
+print(df.columns)
+print(df.head())
 
 print("\n--- Cleaning and Converting ---")
 for col in percentage_columns:
@@ -92,8 +92,7 @@ gpa_map = {
     'b_plus_pct': 3.3, 'b_pct': 3.0, 'b_minus_pct': 2.7,
     'c_plus_pct': 2.3, 'c_pct': 2.0, 'c_minus_pct': 1.7,
     'd_plus_pct': 1.3, 'd_pct': 1.0, 'd_minus_pct': 0.7,
-    'f_pct': 0.0, 'e_pct': 0.0, 'withdrawn_failing_pct': 0.0,
-    'incomplete_failure_pct': 0.0, 'failed_never_attended_pct': 0.0,
+    'f_pct': 0.0, 'e_pct': 0.0, 'withdrawn_failing_pct': 0.0
 }
 
 grade_cols = [col for col in df.columns if col in gpa_map]
@@ -119,13 +118,9 @@ print(json_output[:2])
 final_display_cols = grade_cols + ['gpa_estimate_normalized']
 json_output = df.to_json(orient="records", indent=4, date_format='iso')
 
-print(json_output[:2])
+file_path = 'cleanedgrades2.json'
 
-file_path = 'cleanedgrades.json'
-
-
-
-#df.to_json(file_path, orient='records', indent=4, date_format='iso')
+df.to_json(file_path, orient='records', indent=4, date_format='iso')
 
 #Clean up Fall 2021
 
