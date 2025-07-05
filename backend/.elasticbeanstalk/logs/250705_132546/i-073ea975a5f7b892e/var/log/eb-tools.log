@@ -1,0 +1,11 @@
+2025/07/05 16:41:45.303440 [INFO] Cleaning log publish record...
+2025/07/05 16:41:45.303481 [INFO] Start log publish job.
+2025/07/05 16:41:45.303485 [INFO] Start publish file /tmp/BundleLogs-1751733705274.zip
+2025/07/05 16:41:45.375714 [INFO] Successful upload file /tmp/BundleLogs-1751733705274.zip to s3 resources/environments/logs/bundle/e-5rwruipatj/i-073ea975a5f7b892e/BundleLogs-1751733705274.zip
+2025/07/05 16:41:45.375834 [INFO] Finished log publish job.
+2025/07/05 17:12:16.417263 [INFO] Cleaning log publish record...
+2025/07/05 17:12:16.417926 [INFO] /tmp/BundleLogs-1751733705274.zip exists, no need for clean up
+2025/07/05 17:12:16.417931 [INFO] Start log publish job.
+2025/07/05 17:12:16.417933 [INFO] Start publish file /tmp/TailLogs-1751735536406.txt
+2025/07/05 17:12:16.470428 [INFO] Successful upload file /tmp/TailLogs-1751735536406.txt to s3 resources/environments/logs/tail/e-5rwruipatj/i-073ea975a5f7b892e/TailLogs-1751735536406.txt
+2025/07/05 17:12:16.470599 [INFO] Finished log publish job.

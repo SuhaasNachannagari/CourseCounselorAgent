@@ -190,9 +190,4 @@ async def chat(chat_request: ChatRequest):
 
 # To run this server:
 # In your terminal, navigate to the `backend` directory and run the following command:
-# uvicorn app:app --reload --port 8080
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8080)
+# uvicorn app:app --reload --port 
