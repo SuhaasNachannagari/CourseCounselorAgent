@@ -10,7 +10,7 @@
 /backend/venv/
 
 # Ignore database file if needed
-/backend/grades_improved.db
+#/backend/grades_improved.db
 
 # Python cache files
 __pycache__/

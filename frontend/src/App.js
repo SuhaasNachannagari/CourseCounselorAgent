@@ -10,6 +10,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef(null);
 
+  // Backend URL from env variable or fallback to your Elastic Beanstalk URL
+  const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://purdue-backend-env.eba-ffyp3uxk.us-west-2.elasticbeanstalk.com';
+
   useEffect(() => {
     setSessionId(`session_${Date.now()}`);
   }, []);
@@ -31,7 +34,7 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://127.0.0.1:5000/chat', {
+      const response = await axios.post(`${backendUrl}/chat`, {
         message: input,
         session_id: sessionId,
       });
