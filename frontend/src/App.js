@@ -3,7 +3,8 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import './App.css';
 
-const BACKEND_URL = 'http://purdue-backend-env.eba-ffyp3uxk.us-west-2.elasticbeanstalk.com/chat';
+// ✅ Updated to match your new Elastic Beanstalk endpoint
+const BACKEND_URL = 'http://CourseAgentPurdue.eba-wiqu3jpu.us-west-2.elasticbeanstalk.com/chat';
 
 function App() {
   const [messages, setMessages] = useState([]);
