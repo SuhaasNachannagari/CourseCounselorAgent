@@ -33,7 +33,7 @@ function App() {
 
     try {
       // Ensure this URL is exactly the one from your working curl command
-      const response = await fetch("http://CourseAgentPurdue.eba-wiqu3jpu.us-west-2.elasticbeanstalk.com/chat", {
+      const response = await fetch("https://CourseAgentPurdue.eba-wiqu3jpu.us-west-2.elasticbeanstalk.com/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
