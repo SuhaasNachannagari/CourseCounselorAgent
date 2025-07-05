@@ -1,0 +1,8 @@
+2025-07-05T16:38:14.753685699Z container prune  (reclaimed=0)
+2025-07-05T16:38:19.305875978Z image pull python:3.10-slim (name=python)
+2025-07-05T16:38:49.469580285Z image tag sha256:aaae415176076fabb5bc016164edd6a1b24b675bfc7da72f697c0a2bf8fa7d37 (name=aws_beanstalk/staging-app)
+2025-07-05T16:38:52.739449959Z container create c0a753ab324b48dc305b7446aa30a68f3f026ece20d612d58453c61707f413cc (image=aaae41517607, name=naughty_chatelet)
+2025-07-05T16:38:52.775677656Z network connect a7b9bd75cf1d699ce5d7b3644efb5f611c402d1521e0b626c1374709cf86e520 (container=c0a753ab324b48dc305b7446aa30a68f3f026ece20d612d58453c61707f413cc, name=bridge, type=bridge)
+2025-07-05T16:38:53.610874309Z container start c0a753ab324b48dc305b7446aa30a68f3f026ece20d612d58453c61707f413cc (image=aaae41517607, name=naughty_chatelet)
+2025-07-05T16:38:54.218141191Z network disconnect a7b9bd75cf1d699ce5d7b3644efb5f611c402d1521e0b626c1374709cf86e520 (container=c0a753ab324b48dc305b7446aa30a68f3f026ece20d612d58453c61707f413cc, name=bridge, type=bridge)
+2025-07-05T16:38:54.275983539Z container die c0a753ab324b48dc305b7446aa30a68f3f026ece20d612d58453c61707f413cc (execDuration=0, exitCode=1, image=aaae41517607, name=naughty_chatelet)
