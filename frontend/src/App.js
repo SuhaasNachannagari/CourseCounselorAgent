@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import './App.css';
 
 // ✅ Updated to match your new Elastic Beanstalk endpoint
-const BACKEND_URL = 'http://CourseAgentPurdue.eba-wiqu3jpu.us-west-2.elasticbeanstalk.com/chat';
+const BACKEND_URL = 'https://CourseAgentPurdue.eba-wiqu3jpu.us-west-2.elasticbeanstalk.com/chat';
 
 function App() {
   const [messages, setMessages] = useState([]);
