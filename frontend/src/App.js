@@ -3,15 +3,14 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import './App.css';
 
+const BACKEND_URL = 'http://purdue-backend-env.eba-ffyp3uxk.us-west-2.elasticbeanstalk.com/chat';
+
 function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sessionId, setSessionId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef(null);
-
-  // Backend URL from env variable or fallback to your Elastic Beanstalk URL
-  const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://purdue-backend-env.eba-ffyp3uxk.us-west-2.elasticbeanstalk.com';
 
   useEffect(() => {
     setSessionId(`session_${Date.now()}`);
@@ -34,7 +33,7 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post(`${backendUrl}/chat`, {
+      const response = await axios.post(BACKEND_URL, {
         message: input,
         session_id: sessionId,
       });
@@ -86,7 +85,7 @@ function App() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about a Purdue course..."
         />
-        <button type="submit">Send</button>
+        <button type="submit" disabled={isLoading}>Send</button>
       </form>
     </div>
   );
