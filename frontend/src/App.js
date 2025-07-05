@@ -1,92 +1,102 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
-import ReactMarkdown from 'react-markdown';
-import './App.css';
+import './App.css'; // Make sure you have App.css for styling
 
-// ✅ Updated to match your new Elastic Beanstalk endpoint
-const BACKEND_URL = 'https://CourseAgentPurdue.eba-wiqu3jpu.us-west-2.elasticbeanstalk.com/chat';
+// We can generate a new session ID for each page load.
+const sessionId = `session_${Date.now()}`;
 
 function App() {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [sessionId, setSessionId] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const chatEndRef = useRef(null);
-
-  useEffect(() => {
-    setSessionId(`session_${Date.now()}`);
-  }, []);
-
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  const [messages, setMessages] = useState([
+    {
+      text: "I'm connected to the live server. Ask me about a Purdue course!",
+      sender: "bot"
     }
-  }, [messages]);
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const chatWindowRef = useRef(null);
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!input.trim()) return;
+  // Automatically scroll down when messages change
+  useEffect(() => {
+    if (chatWindowRef.current) {
+      chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
+    }
+  }, [messages, isLoading]);
 
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const userMessage = { text: input, sender: 'user', time: timestamp };
-    setMessages(prev => [...prev, userMessage]);
+  const handleSendMessage = async (event) => {
+    event.preventDefault();
+    const userMessage = input.trim();
+    if (!userMessage) return;
+
+    setMessages(prev => [...prev, { text: userMessage, sender: "user" }]);
     setInput('');
     setIsLoading(true);
 
     try {
-      const response = await axios.post(BACKEND_URL, {
-        message: input,
-        session_id: sessionId,
+      // Ensure this URL is exactly the one from your working curl command
+      const response = await fetch("http://CourseAgentPurdue.eba-wiqu3jpu.us-west-2.elasticbeanstalk.com/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          session_id: sessionId,
+        }),
       });
 
-      const botTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const botMessage = { text: response.data.reply, sender: 'bot', time: botTimestamp };
-      setMessages(prev => [...prev, botMessage]);
+      // Check if the response is successful
+      if (!response.ok) {
+        // Try to get more error info from the response body
+        const errorData = await response.text();
+        throw new Error(`HTTP error! Status: ${response.status} - ${errorData}`);
+      }
+
+      const data = await response.json();
+      setMessages(prev => [...prev, { text: data.reply, sender: "bot" }]);
+
     } catch (error) {
-      console.error('Error sending message:', error);
-      const errorMessage = {
-        text: 'Sorry, something went wrong.',
-        sender: 'bot',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      console.error("Fetch error:", error);
+      setMessages(prev => [...prev, { text: `There was an error connecting to the agent. Please check the console. Details: ${error.message}`, sender: "bot", isError: true }]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const formatBotMessage = (text) => {
+    return text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  };
+
   return (
-    <div className="App">
-      <div className="app-header">Boiler Advisor</div>
-      <div className="chat-window">
+    <div id="chat-container">
+      <div id="chat-header">
+        <h2>Purdue Course Advisor</h2>
+        <p>Get the real story on courses and professors.</p>
+      </div>
+      <div id="chat-window" ref={chatWindowRef}>
         {messages.map((msg, index) => (
-          <div key={index} className={`message ${msg.sender}`}>
-            <div className="message-text">
-              {msg.sender === 'bot' ? (
-                <ReactMarkdown>{msg.text}</ReactMarkdown>
-              ) : (
-                msg.text
-              )}
-            </div>
-            <div className="timestamp">{msg.time}</div>
+          <div key={index} className={`message ${msg.sender}-message ${msg.isError ? 'error' : ''}`}>
+            <p dangerouslySetInnerHTML={{ __html: msg.sender === 'bot' ? formatBotMessage(msg.text) : msg.text }} />
           </div>
         ))}
         {isLoading && (
-          <div className="message bot">
-            <div className="message-text"><em>Typing...</em></div>
-            <div className="timestamp">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+          <div className="message bot-message">
+            <div className="typing-indicator"><span></span><span></span><span></span></div>
           </div>
         )}
-        <div ref={chatEndRef} />
       </div>
-      <form onSubmit={sendMessage} className="chat-input">
+      <form id="chat-form" onSubmit={handleSendMessage}>
         <input
           type="text"
+          id="message-input"
+          placeholder="Ask about a course..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about a Purdue course..."
+          disabled={isLoading}
+          autoComplete="off"
         />
-        <button type="submit" disabled={isLoading}>Send</button>
+        <button type="submit" disabled={isLoading || !input}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="icon"><path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 24.1 24.1 0 0 0 18.226-10.372.75.75 0 0 0 0-.856A24.1 24.1 0 0 0 3.478 2.404Z" /></svg>
+        </button>
       </form>
     </div>
   );
