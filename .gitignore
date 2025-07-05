@@ -1,0 +1,25 @@
+# Ignore only backend/.env
+/backend/.env
+
+# Ignore all JSON files in QueriableStorage folder (or just this big one)
+/QueriableStorage/all_cleanedgrades.json
+
+# Ignore virtual env folders inside backend
+/backend/.venv/
+/backend/env/
+/backend/venv/
+
+# Ignore database file if needed
+/backend/grades_improved.db
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE and system files
+.vscode/
+.idea/
+
+.DS_Store
+Thumbs.db
