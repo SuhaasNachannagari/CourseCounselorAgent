@@ -68,7 +68,7 @@ const ChatInterface = () => {
       
       const botResponse: Message = {
         id: Date.now() + 1,
-        text: data.response || "I'm sorry, I couldn't process your request right now. Please try again.",
+        text: data.reply || "I'm sorry, I couldn't process your request right now. Please try again.",
         sender: 'bot',
         timestamp: new Date()
       };
