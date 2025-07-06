@@ -33,7 +33,7 @@ function App() {
 
     try {
       // Ensure this URL is exactly the one from your working curl command
-      const response = await fetch("https://CourseAgentPurdue.eba-wiqu3jpu.us-west-2.elasticbeanstalk.com/chat", {
+      const response = await fetch("https://dvk9w45cc1.execute-api.us-east-2.amazonaws.com/prod/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -70,7 +70,7 @@ function App() {
     <div id="chat-container">
       <div id="chat-header">
         <h2>Purdue Course Advisor</h2>
-        <p>Get the real story on courses and professors.</p>
+        <p>Type Shit</p>
       </div>
       <div id="chat-window" ref={chatWindowRef}>
         {messages.map((msg, index) => (
