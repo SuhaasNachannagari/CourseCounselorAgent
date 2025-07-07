@@ -49,7 +49,7 @@ const ChatInterface = () => {
     setIsTyping(true);
 
     try {
-      const response = await fetch("http://CourseAgentEnv.eba-iu2szg7h.us-east-2.elasticbeanstalk.com/chat", {
+      const response = await fetch("https://dvk9w45cc1.execute-api.us-east-2.amazonaws.com/prod/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
