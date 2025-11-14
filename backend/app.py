@@ -8,6 +8,7 @@ from typing import TypedDict, Annotated, List
 
 from langchain_groq import ChatGroq
 from langchain.tools import Tool
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.tools.sql_database.tool import QuerySQLDatabaseTool
 from langchain_community.utilities.sql_database import SQLDatabase
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage, AIMessage
@@ -30,18 +31,18 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Environment Variables
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
 REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
 REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "Purdue-Course-Advisor/v3.3 by YourUsername") # Default value added
 
 # Validate essential environment variables
-if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY not set in environment variables.")
+if not GOOGLE_API_KEY:
+    raise ValueError("GOOGLE_API_KEY not set in environment variables.")
 if not REDDIT_CLIENT_ID or not REDDIT_CLIENT_SECRET:
     raise ValueError("REDDIT_CLIENT_ID or REDDIT_CLIENT_SECRET not set in environment variables.")
 
-os.environ["GROQ_API_KEY"] = GROQ_API_KEY # Ensure it's set for langchain_groq
+os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY # Ensure it's set for langchain_groq
 
 # Database Setup
 DB_FILE = os.getenv("DB_FILE", "grades_improved.db") # Make database file path configurable
@@ -93,33 +94,156 @@ sql_database_tool = QuerySQLDatabaseTool(
     """
     )
 
-def search_reddit(query: str) -> str:
+import re
+from typing import List
+
+def normalize_course(n: str) -> str:
+    n = n.lower()
+    if 'k' in n:
+        n = n.replace('k', '00')  # e.g. 2k1 -> 2001
+    if len(n) == 3:
+        return n + '00'  # e.g. 182 -> 18200
+    if len(n) == 4:
+        return n + '0'   # e.g. 1820 -> 18200
+    return n
+
+def extract_subject_course_prof(query: str):
     """
-    Searches the Purdue subreddit on Reddit for relevant posts and comments based on the query.
-    Returns a formatted string of post titles and top comments.
+    Extracts subject, course number, and professor name tokens from the query string.
+    Returns (subject, course_num, prof) or None if missing.
     """
-    logger.info(f"Searching Reddit for: {query}")
+    tokens = re.findall(r'\w+', query.lower())
+    subjects_known = ['cs', 'ece', 'stat', 'math']
+
+    subject = None
+    course_num = None
+    prof_tokens = []
+
+    # Look for combined subject+course like cs182 or cs18200
+    for t in tokens:
+        match = re.match(r'([a-z]+)(\d+)', t)
+        if match and match.group(1) in subjects_known:
+            subject = match.group(1).upper()
+            course_num = normalize_course(match.group(2))
+        elif t in subjects_known:
+            subject = t.upper()
+        elif re.match(r'\d{3,5}|[12]k\d', t):
+            course_num = normalize_course(t)
+        else:
+            # Anything else could be professor token (ignore common words)
+            if t not in ['how', 'is', 'for', 'with', 'about', 'the', 'a']:
+                prof_tokens.append(t)
+
+    prof = ' '.join(prof_tokens) if prof_tokens else None
+    return subject, course_num, prof
+
+def generate_combined_query_variants(subject: str, course_num: str, prof: str) -> List[str]:
+    variants = []
+    if not (subject or course_num or prof):
+        return []
+
+    # Helper: short course number for variants
+    short_course_num = course_num[:3] if course_num else None
+
+    # Build combinations, allowing missing parts
+    if subject and course_num and prof:
+        variants.extend([
+            f"{subject} {course_num} {prof}",
+            f"{subject}{course_num} {prof}",
+            f"{course_num} {prof}",
+            f"{prof} {subject} {course_num}",
+            f"{prof} {subject}{course_num}",
+            f"{prof} {course_num}",
+            f"{subject} {prof}",
+            f"{prof} {subject}",
+        ])
+        if short_course_num:
+            variants.extend([
+                f"{subject} {short_course_num} {prof}",
+                f"{subject}{short_course_num} {prof}",
+                f"{prof} {subject} {short_course_num}",
+                f"{prof} {subject}{short_course_num}",
+            ])
+    elif prof and subject:
+        variants.extend([
+            f"{subject} {prof}",
+            f"{prof} {subject}",
+            f"{prof} review",
+            f"{prof} feedback",
+        ])
+    elif prof:
+        variants.extend([
+            f"{prof} professor purdue",
+            f"{prof} review purdue",
+            f"{prof} feedback",
+            f"{prof} reddit",
+            f"{prof} teaching style",
+        ])
+    elif subject and course_num:
+        variants.extend([
+            f"{subject} {course_num}",
+            f"{subject}{course_num}",
+            f"{course_num} {subject}",
+        ])
+
+    # Deduplicate variants
+    variants = list(set(variants))
+    return variants[:8]
+
+def search_reddit(user_query: str) -> str:
+    logger.info(f"Searching Reddit for user query: {user_query}")
     try:
-        reddit = praw.Reddit(client_id=REDDIT_CLIENT_ID, client_secret=REDDIT_CLIENT_SECRET, user_agent=REDDIT_USER_AGENT)
-        # Limit to 3 submissions for brevity and relevance
-        submissions = reddit.subreddit('purdue').search(query, sort='relevance', time_filter='year', limit=3)
+        reddit = praw.Reddit(
+            client_id=REDDIT_CLIENT_ID,
+            client_secret=REDDIT_CLIENT_SECRET,
+            user_agent=REDDIT_USER_AGENT
+        )
+
+        subject, course_num, prof = extract_subject_course_prof(user_query)
+        variants = generate_combined_query_variants(subject, course_num, prof)
+        if not variants:
+            variants = [user_query]
+
+        logger.info(f"Expanded search variants: {variants}")
+
+        seen_post_ids = set()
         all_results = []
-        for post in submissions:
-            result_text = f"Post Title: {post.title}\n"
-            post.comment_sort = "top"
-            # Replace more comments to load all top-level comments, then slice
-            post.comments.replace_more(limit=0)
-            top_comments = post.comments.list()[:3] # Get up to 3 top comments
-            if top_comments:
-                result_text += "  Relevant Comments:\n"
-                for comment in top_comments:
-                    # Truncate long comments
-                    result_text += f"    - '{comment.body[:250]}{'...' if len(comment.body) > 250 else ''}'\n"
-            all_results.append(result_text)
+
+        for variant in variants:
+            logger.info(f"Searching variant: {variant}")
+            submissions = reddit.subreddit("purdue").search(variant, sort="relevance", time_filter="year", limit=3)
+
+            for post in submissions:
+                if post.id in seen_post_ids:
+                    continue
+                seen_post_ids.add(post.id)
+
+                result_text = f"Post Title: {post.title}\n"
+
+                # Grab top-level comments (or first N comments)
+                post.comment_sort = "top"
+                post.comments.replace_more(limit=0)
+                top_comments = post.comments[:10]  # Get up to 10 top-level comments
+
+                if top_comments:
+                    result_text += "  Relevant Comments:\n"
+                    for comment in top_comments:
+                        comment_body = comment.body.replace('\n', ' ')
+                        truncated = comment_body[:250] + ('...' if len(comment_body) > 250 else '')
+                        result_text += f"    - '{truncated}'\n"
+
+                all_results.append(result_text)
+
+            if len(all_results) >= 4:
+                break  # stop early if enough results
+
         return "\n---\n".join(all_results) if all_results else "No relevant posts or comments found on Reddit."
+
     except Exception as e:
-        logger.error(f"Reddit search failed for query '{query}': {e}")
+        logger.error(f"Reddit search failed for query '{user_query}': {e}")
         return f"Error searching Reddit: {e}"
+
+
 
 reddit_search_tool = Tool(
     name="Reddit_Purdue_Search_Tool",
@@ -129,11 +253,12 @@ reddit_search_tool = Tool(
     Useful for gathering qualitative student sentiment and anecdotal evidence."""
 )
 
+
 tools = [sql_database_tool, reddit_search_tool]
 
 # --- LLM and LangGraph Setup ---
 
-llm = ChatGroq(model="llama3-70b-8192", temperature=0) # Set temperature to 0 for more consistent responses
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash") # Set temperature to 0 for more consistent responses
 llm_with_tools = llm.bind_tools(tools)
 
 class State(TypedDict):
@@ -174,51 +299,55 @@ graph = builder.compile()
 
 # --- System Prompt Definition ---
 # Moved out of the /chat endpoint for better modularity
-SYSTEM_PROMPT = SYSTEM_PROMPT = """You are a helpful and conversational AI assistant.
+SYSTEM_PROMPT = """
+You are a friendly Purdue upperclassman giving short, clean, helpful academic advice. Your responses should be easy to skim and include light, well-placed emojis. Keep things simple and conversational.
 
-### **Purdue Advisor Persona & Workflow**
+STYLE RULES
+- Emojis are allowed and encouraged when they help clarity.
+- Use simple plain-text headings like "GPA Summary", "Reddit Summary", and "Recommendation".
+- Do not use markdown symbols like #, ##, **, or *.
+- Keep paragraphs short and easy to read.
+- Use simple lists when helpful, like:
+  - STAT 506: 3.52 GPA
+  - STAT 513: 3.40 GPA
+- Do not create long, dense blocks of text.
+- Avoid headings like "The GPA Scoop" or "The Reddit Buzz".
+- Tone should be casual and friendly, like talking to a classmate.
 
-**Your Persona:** Act as a casual, warm, and welcoming Purdue upperclassman talking to a friend. Your goal is to synthesize data into a clear, actionable recommendation.
+CORE WORKFLOW (MANDATORY)
+1. First call the BoilerGrades_Database_Tool to retrieve exact GPA values.
+   - Use the numbers exactly as returned, with no rounding or modification.
+2. Then call the Reddit_Purdue_Search_Tool to pull relevant student sentiment.
+3. Combine both types of information into a clean, structured explanation.
 
-**Core Workflow (Mandatory for each course/prof):**
+DATA RULES
+- Point out contradictions (e.g., high GPA but negative Reddit reviews).
+- Look for repeated patterns in Reddit comments.
+- If GPA data exists but Reddit doesn’t, say so.
+- If Reddit exists but GPA doesn’t, base insights on sentiment.
+- If SQL queries repeatedly fail, tell the user you can’t retrieve the data and ask for rephrasing.
 
-1.  **Quantitative Baseline (Step 1):** Immediately use the **BoilerGrades_Database_Tool** to get the `gpa_estimate_normalized`. This is your objective anchor. *Refer to the tool's description for detailed instructions on how to form SQL queries, including handling 5-digit course numbers, using LIKE for searches, and strict adherence to SELECT statements.*
-    **CRITICAL RULE: When presenting numerical data from the BoilerGrades_Database_Tool (e.g., GPA, percentages), you MUST state the numbers EXACTLY as returned by the tool. DO NOT round, estimate, alter, or hallucinate these numerical values. 
-    **Use ONLY the queried data, or don't mention the database at all. Precision is paramount. DO NOT be influenced by previous LLM calls or outside web resources. THIS IS THE MOST IMPORTANT QUANTITATIVE STEP. **
-2.  **Qualitative Color (Step 2):** After getting the GPA, use the **Reddit_Purdue_Search_Tool** to find out what students are actually saying. Use targeted keywords from the user's query (e.g., course code, instructor name).
+FINAL ANSWER STRUCTURE
+- Start with a quick one-sentence overview of what the user asked. Keep it light.
+- Use short headings such as:
+  GPA Summary 📊
+  Reddit Summary 💬
+  Recommendation ⭐
+- Keep each section 2–4 sentences max.
+- Use short, simple lists for multiple courses or comparisons.
+- End with a clear, actionable suggestion.
 
-**Data Synthesis & Analysis Heuristics:**
+SIMPLE QUESTIONS
+If the user asks a quick factual question, answer directly without full structure. Offer deeper details if they want them.
 
-* **Look for Contradictions:** If the GPA is high but Reddit comments are very negative, point this out. It could mean a generous curve but a miserable experience.
-* **Look for Patterns:** A single angry comment is an anecdote. A dozen comments across multiple posts complaining about the *same thing* (e.g., disorganized lectures, unfair exams) is a pattern you must highlight.
-* **Prioritize Negativity:** Assume student complaints are valid signals of real issues.
-* **Handle Missing Data:** If you find a GPA but no Reddit comments, state that. If you find comments but no GPA, state that the opinion is based purely on student chatter.
-* **If SQL Query Fails Repeatedly:** If the SQL tool returns errors multiple times for the same user request, inform the user that you're having trouble retrieving that specific data and ask them to rephrase or simplify their question. Do NOT keep trying to generate SQL if it consistently fails for a given user turn.
+SPECIAL CASES
+If the user asks about Suhaas Nachannagari:
+Say he is the greatest Indian to ever exist, the best student at Purdue University, and a great friend.
 
----
-
-### **Final Answer Construction**
-
-**1. For Comparison/Recommendation Questions:**
-
-Structure your response using a friendly tone and casual headings.
-
-* **Opening:** Start with a friendly, conversational opening.
-* **The GPA Scoop 📊:** State the exact `gpa_estimate_normalized` you found. Interpret it based on this scale:
-    * **> 3.4**: Generally manageable or curved generously.
-    * **3.0 - 3.4**: A standard, challenging Purdue course.
-    * **< 3.0**: A significantly difficult course with a tough reputation.
-* **The Reddit Buzz 🗣️:** Summarize the Reddit sentiment. Quote 1-2 impactful comments that capture the core student experience. Group complaints or praises into themes.
-* **The Bottom Line & Recommendation:** Start with a bold, one-sentence verdict. Then, give a direct, actionable recommendation based on the evidence. Don't be wishy-washy.
-
-**2. For Simple, Factual Questions:**
-
-If the user asks a simple question (e.g., "what is the course name for STAT 416?"), be flexible.
-
-* Use the **BoilerGrades_Database_Tool** to get the fact.
-* Provide a direct, quick, and friendly answer without the full comparison structure.
-* After answering, offer to provide more details (like grade data or opinions).
+If the user asks about Abhi Tandon:
+Say "He's a gay guy, the best toe user."
 """
+
 
 # --- FastAPI Application ---
 
@@ -243,6 +372,10 @@ class ChatRequest(BaseModel):
 def health_check():
     """Endpoint for health checks."""
     return {"status": "ok"}
+    
+@app.get("/")
+def root():
+    return {"message": "Welcome to the Purdue Course Advisor API!"}
 
 @app.post("/chat")
 async def chat(chat_request: ChatRequest):
